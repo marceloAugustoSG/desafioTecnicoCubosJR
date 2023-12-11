@@ -1,23 +1,24 @@
-import { create, list, createCardAccount, listCards, createTransactionAccount, listTransactions } from "../controllers/Account.controller"
+import { create, createCardAccount, createTransactionAccount, listTransactions, listTransactionsWithFilters, getBalance, listAccountCards } from "../controllers/Account.controller"
+import { authenticate } from "../services/auth/authServices"
 
 const accountRoutes = (app) => {
 
     //Criação de uma conta
-    app.post('/:id/accounts', create)
+    app.post('/:id/accounts', authenticate, create)
 
     //Criação de uma cartão em uma conta
-    app.post('/accounts/:id/cards', createCardAccount)
+    app.post('/accounts/:id/cards', authenticate, createCardAccount)
+
 
     //Criação de uma transação em uma conta
-    app.post('/accounts/:id/transaction', createTransactionAccount)
+    app.post('/accounts/:id/transaction', authenticate, createTransactionAccount)
 
-    //Listagem de contas
-    app.get('/accounts', list)
+    //Listagem de transacoes com filtro
+    app.get('/accounts/:accountId/transactions', authenticate, listTransactionsWithFilters)
 
-    //Listagem de cartões de uma conta
-    app.get('/accounts/:id/cards', listCards)
+    app.get('/accounts/:accountId/cards', authenticate, listAccountCards)
 
-    //Listagem de transações de uma conta
-    app.get('/accounts/:accountId/transactions', listTransactions)
+    // Ver saldo da conta
+    app.get('/accounts/:accountId/balance', authenticate, getBalance)
 }
 export default accountRoutes

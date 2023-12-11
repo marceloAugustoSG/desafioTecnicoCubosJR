@@ -2,6 +2,11 @@ import { prismaClient } from "../PrismaClient";
 
 class People {
 
+    async countItems(): Promise<number> {
+        const totalCount = await prismaClient.people.count();
+        return totalCount;
+    }
+
     async createPeople(data) {
         const newPeople = await prismaClient.people.create({
             data, select: {
@@ -16,7 +21,7 @@ class People {
         return newPeople
     }
 
-    async listPerson() {
+    async listPerson({ offset, limit, sortBy }): Promise<any[]> {
         const persons = await prismaClient.people.findMany({
             select: {
                 id: true,
@@ -25,9 +30,12 @@ class People {
                 createAt: true,
                 updateAt: true,
                 accounts: true
-            }
-        })
-        return persons
+            },
+            orderBy: { createAt: sortBy.createAt === -1 ? 'desc' : 'asc' }, // Ajustar a estrutura do orderBy
+            skip: offset,
+            take: limit,
+        });
+        return persons;
     }
 
     async listPersonAccounts(idPerson) {

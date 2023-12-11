@@ -25,16 +25,15 @@ export const formatAccount = (account: string): string => {
     return formattedAccount;
 };
 
-export const formatAccounts = async (account: string): Promise<string> => {
-    if (account && account.length === 10) {
-        return `${account.slice(0, 7)}-${account.slice(7)}`;
-    } else {
-        // Se a conta não tem o formato esperado, retorne a própria conta sem modificação
-        return account;
-    }
-}
+// export const formatAccounts = async (account: string): Promise<string> => {
+//     if (account && account.length === 10) {
+//         return `${account.slice(0, 7)}-${account.slice(7)}`;
+//     } else {
+//         return account;
+//     }
+// }
 
-export const formatLast4Digits = async (cardNumber: string): Promise<string> => {
+export const formatLast4Digits = (cardNumber: string): string => {
     return cardNumber.slice(-4)
 }
 
@@ -45,4 +44,34 @@ export const validNumberCard = async (cardNumber: string): Promise<boolean> => {
     // Testa se o número do cartão corresponde ao formato esperado
     return regex.test(cardNumber);
 }
+
+export const validTypeCard = async (typeCard: string): Promise<boolean> => {
+
+    //checando o tipo do cartão
+    if (typeCard === "physical" || typeCard === "virtual") {
+        return true
+    } else {
+        return false
+    }
+
+}
+export const isAccountPhysicalCard = async (accountId: string): Promise<boolean> => {
+    const cartoesFisicos = await prismaClient.card.findMany({
+        where: {
+            accountId: accountId,
+            type: 'physical',
+        },
+    });
+    console.log("teste:" + cartoesFisicos)
+    return cartoesFisicos.length > 0;
+};
+
+export const isValidCvv = async (cvv: string): Promise<boolean> => {
+    // Verifica se o CVV possui exatamente 3 dígitos
+    return /^\d{3}$/.test(cvv);
+};
+
+
+
+
 

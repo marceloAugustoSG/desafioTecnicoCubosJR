@@ -26,6 +26,8 @@ model Account {
   account      String        @unique
   createAt     DateTime      @default(now())
   updateAt     DateTime      @updatedAt
+  //requisito balance
+  balance      Float
   cards        Card[]
   transactions Transaction[]
   People       People?       @relation(fields: [peopleId], references: [id])
@@ -46,6 +48,7 @@ model Card {
 model Transaction {
   id          String   @id @default(uuid())
   value       Float
+  type        String
   description String
   createAt    DateTime @default(now())
   updateAt    DateTime @updatedAt

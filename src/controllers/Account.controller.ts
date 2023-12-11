@@ -1,7 +1,7 @@
 import AccountModel from "../models/Account.model";
 import { Request, Response } from "express";
-import { isUniqueAccount, isValidBranch, formatAccount, formatLast4Digits, validNumberCard } from "../services/AccountServices";
-
+import { isUniqueAccount, isValidBranch, formatAccount, formatLast4Digits, validNumberCard, validTypeCard, isAccountPhysicalCard, isValidCvv } from "../services/AccountServices";
+import { validTypeTransactionDebit } from "../services/TransactionServices";
 export const create = async (req: Request, res: Response) => {
     const peopleId = req.params.id;
     const account = req.body.account;
@@ -24,7 +24,6 @@ export const create = async (req: Request, res: Response) => {
             res.status(400).json({ message: "O número de agência deve possuir exatos 3 dígitos." });
             return;
         }
-
         // Cria a conta
         const newAccount = await AccountModel.createAccount(peopleId, req.body);
         //Formata o numero da conta
@@ -37,39 +36,50 @@ export const create = async (req: Request, res: Response) => {
     }
 }
 
-export const list = async (req: Request, res: Response) => {
-    try {
-        const accounts = await AccountModel.listAccounts();
-
-        //formatando o atributo account de account para receber a mascara
-        const formattedAccounts = accounts.map(account => ({
-            id: account.id,
-            branch: account.branch,
-            account: formatAccount(account.account),
-            createAt: account.createAt,
-            updateAt: account.updateAt,
-        }));
-
-        res.status(200).json(formattedAccounts);
-    } catch (error) {
-        console.error(error);
-        res.status(500).json({ message: "Erro ao obter as contas." });
-    }
-};
-
 export const createCardAccount = async (req: Request, res: Response) => {
     const accountId = req.params.id
+    const { type, number, cvv } = req.body
     try {
-        const newCard = await AccountModel.createCardAccount(accountId, req.body)
 
-        const validNunCard = await validNumberCard(newCard.number)
+        //validações :
+        // Tipo do cartão: Um cartão pode ser do tipo physical ou virtual.
+        const validTyCard = await validTypeCard(type)
+        // Uma conta pode ter vários cartões, porém é permitido somente um cartão físico por conta. Virtuais são ilimitados.
+        const isCardPhysical = await isAccountPhysicalCard(accountId);
+        // No campo number, o número completo do cartão deve ser informado na criação.
+        const validNunCard = await validNumberCard(number)
+        // O cvv deve conter exatos 3 dígitos.
+
+        const cvv3Digits = await isValidCvv(cvv)
+        // No campo number, somente os 4 últimos números do cartão devem ser retornados na resposta.
+
         //No campo number, o número completo do cartão deve ser informado na criação.
         if (!validNunCard) {
             res.status(400).json({ message: "Número de cartão não aceito" })
             return;
         }
+        if (!validTyCard) {
+            res.status(400).json({ message: "Tipo de cartão não aceito" })
+            return;
+        }
+
+
+        if (type === "physical" && isCardPhysical) {
+            console.log(isCardPhysical)
+            res.status(400).json({ message: "A conta ja possui um cartão fisico" })
+            return;
+        }
+
+        if (!cvv3Digits) {
+            res.status(400).json({ message: "Cvv tem que ter 3 numeros" })
+            return;
+        }
+
         //mostrando os ultimos 4 digitos
-        const format4Digit = await formatLast4Digits(newCard.number)
+
+        const newCard = await AccountModel.createCardAccount(accountId, req.body)
+
+        const format4Digit = formatLast4Digits(newCard.number)
         newCard.number = format4Digit
         console.log(newCard)
         res.status(200).json(newCard)
@@ -79,33 +89,60 @@ export const createCardAccount = async (req: Request, res: Response) => {
     }
 }
 
-export const listCards = async (req: Request, res: Response) => {
-    const accountId = req.params.id
+export const listAccountCards = async (req: Request, res: Response) => {
+    const accountId = req.params.id;
     try {
-        const cards = await AccountModel.listAllCards(accountId)
-        console.log(cards)
-        if (cards.length === 0) {
-            res.status(200).json({ message: "Essa conta não possui nenhum cartão" })
+        const cards = await AccountModel.listAllCardsAccount(accountId);
+
+        // Formatando o atributo number de card para exibir os últimos 4 dígitos
+        const formattedCards = cards.map(card => ({
+
+            id: card.id,
+            type: card.type,
+            number: formatLast4Digits(card.number),
+            cvv: card.cvv,
+            createAt: card.createAt,
+            updateAt: card.updateAt,
+
+        }));
+
+        console.log(formattedCards);
+
+        if (formattedCards.length === 0) {
+            res.status(200).json({ message: "Essa conta não possui nenhum cartão" });
         } else {
-            res.status(200).json({ cards })
+            res.status(200).json({ cards: formattedCards });
         }
     } catch (error) {
-        res.status(400).json(error)
-
+        console.log(error);
+        res.status(400).json(error);
     }
-}
+};
 
 export const createTransactionAccount = async (req: Request, res: Response) => {
+
+    // ao criar a tabela de transações no bd , eu tive que adicionar uma coluna type,pois no requisito
+    // estava dizendo que uma transação pode ser de debito ou crédito,mais no exemplo do requisito nao tinha
+
     const accountId = req.params.id
-    console.log(accountId)
+    const { type, value } = req.body
     try {
+        if (type === "debit") {
+            // Se for uma transação de débito, validar o saldo
+            const balanceCheck = await validTypeTransactionDebit(type, accountId, value);
 
+            if (balanceCheck.insufficientFunds) {
+                return res.status(400).json({ message: "Saldo insuficiente para a transação de débito." });
+            }
+        }
 
-        const newTransaction = await AccountModel.createTransactionAccount(accountId, req.body)
-        res.status(200).json(newTransaction)
+        // Cria a transação
+        const newTransaction = await AccountModel.createTransactionAccount(accountId, req.body);
+
+        res.status(200).json(newTransaction);
     } catch (error) {
-        console.log(error)
-        res.status(400).json(error)
+        console.error(error);
+        res.status(500).json({ message: "Ocorreu um erro durante a criação da transação.", error: error.message });
     }
 }
 
@@ -124,3 +161,38 @@ export const listTransactions = async (req: Request, res: Response) => {
         res.status(400).json(error)
     }
 }
+
+
+export const listTransactionsWithFilters = async (req: Request, res: Response) => {
+    const accountId = req.params.accountId;
+    const filters = {
+        type: req.query.type as string | undefined,
+        search: req.query.search as string | undefined,
+    };
+
+    try {
+        const transactions = await AccountModel.listAllTransactionsWithFilters(accountId, filters);
+        if (transactions.length === 0) {
+            res.status(200).json({ message: "Nenhum resultado encontrado" });
+            return;
+        }
+
+        res.status(200).json({ transactions });
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ message: "Erro ao obter as transações." });
+    }
+};
+export const getBalance = async (req: Request, res: Response) => {
+
+    try {
+        const balance = await AccountModel.getBalenceAccount(req.params.accountId)
+        res.status(200).json({ balance: balance })
+
+    } catch (error) {
+        res.status(200).json(error)
+    }
+
+}
+
+
