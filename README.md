@@ -24,7 +24,8 @@ Validação do saldo para evitar valores negativos.
 Listagem de transações em uma conta com a capacidade de aplicar filtros.
 ##### 7. Consultar o Saldo de uma Conta
 Recuperação do saldo atual de uma conta.
-Como Executar o Projeto
+
+### Como Executar o Projeto
 Instale as Dependências
 ```bash
 yarn install
